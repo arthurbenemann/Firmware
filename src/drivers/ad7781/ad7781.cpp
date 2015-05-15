@@ -100,11 +100,6 @@ public:
 	 */
 	void			print_info();
 
-	// print register dump
-	void			print_registers();
-
-	// trigger an error
-	void			test_error();
 
 protected:
 	virtual int		probe();
@@ -170,13 +165,6 @@ private:
 	 * @return		The value that was read.
 	 */
 	uint8_t			read_reg(unsigned reg);
-
-	/**
-	 * Self test
-	 *
-	 * @return 0 on success, 1 on failure
-	 */
-	 int 			self_test();
 
 	/* this class does not allow copying */
 	AD7781(const AD7781&);
@@ -577,29 +565,6 @@ AD7781::print_info()
         }
 }
 
-void
-AD7781::print_registers()
-{
-	printf("AD7781 registers\n");
-	for (uint8_t reg=0; reg<=0x40; reg++) {
-		uint8_t v = read_reg(reg);
-		printf("%02x:%02x ",(unsigned)reg, (unsigned)v);
-		if ((reg+1) % 16 == 0) {
-			printf("\n");
-		}
-	}
-	printf("\n");
-}
-
-int
-AD7781::self_test()
-{
-	/* evaluate gyro offsets, complain if offset -> zero or larger than 6 dps */
-	//if (fabsf(_gyro_scale.z_scale - 1.0f) > 0.3f)
-	//	return 1;
-	return 0;
-}
-
 /**
  * Local functions in support of the shell command.
  */
@@ -611,10 +576,7 @@ AD7781	*g_dev;
 void	usage();
 void	start(bool external_bus);
 void	test();
-void	reset();
 void	info();
-void	regdump();
-void	test_error();
 
 /**
  * Start the driver.
@@ -750,36 +712,6 @@ info()
 
 	printf("state @ %p\n", g_dev);
 	g_dev->print_info();
-
-	exit(0);
-}
-
-/**
- * Dump the register information
- */
-void
-regdump(void)
-{
-	if (g_dev == nullptr)
-		errx(1, "driver not running");
-
-	printf("regdump @ %p\n", g_dev);
-	g_dev->print_registers();
-
-	exit(0);
-}
-
-/**
- * trigger an error
- */
-void
-test_error(void)
-{
-	if (g_dev == nullptr)
-		errx(1, "driver not running");
-
-	printf("regdump @ %p\n", g_dev);
-	g_dev->test_error();
 
 	exit(0);
 }
