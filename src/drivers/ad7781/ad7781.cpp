@@ -172,25 +172,6 @@ private:
 	uint8_t			read_reg(unsigned reg);
 
 	/**
-	 * Write a register in the AD7781
-	 *
-	 * @param reg		The register to write.
-	 * @param value		The new value to write.
-	 */
-	void			write_reg(unsigned reg, uint8_t value);
-
-	/**
-	 * Modify a register in the AD7781
-	 *
-	 * Bits are cleared before bits are set.
-	 *
-	 * @param reg		The register to modify.
-	 * @param clearbits	Bits in the register to clear.
-	 * @param setbits	Bits in the register to set.
-	 */
-	void			modify_reg(unsigned reg, uint8_t clearbits, uint8_t setbits);
-
-	/**
 	 * Self test
 	 *
 	 * @return 0 on success, 1 on failure
@@ -438,28 +419,6 @@ AD7781::read_reg(unsigned reg)
 	transfer(cmd, cmd, sizeof(cmd));
 
 	return cmd[1];
-}
-
-void
-AD7781::write_reg(unsigned reg, uint8_t value)
-{
-	uint8_t	cmd[2];
-
-	cmd[0] = reg | DIR_WRITE;
-	cmd[1] = value;
-
-	transfer(cmd, nullptr, sizeof(cmd));
-}
-
-void
-AD7781::modify_reg(unsigned reg, uint8_t clearbits, uint8_t setbits)
-{
-	uint8_t	val;
-
-	val = read_reg(reg);
-	val &= ~clearbits;
-	val |= setbits;
-	write_checked_reg(reg, val);
 }
 
 void
