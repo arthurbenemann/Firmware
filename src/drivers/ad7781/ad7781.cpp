@@ -116,9 +116,6 @@ private:
 
 	RingBuffer		*_reports;
 
-	struct gyro_scale	_gyro_scale;
-	float			_gyro_range_scale;
-	float			_gyro_range_rad_s;
 	orb_advert_t		_gyro_topic;
 	int			_orb_class_instance;
 	int			_class_instance;
@@ -211,9 +208,6 @@ AD7781::AD7781(int bus, const char* path, spi_dev_e device) :
 	_call{},
 	_call_interval(0),
 	_reports(nullptr),
-	_gyro_scale{},
-	_gyro_range_scale(0.0f),
-	_gyro_range_rad_s(0.0f),
 	_gyro_topic(-1),
 	_orb_class_instance(-1),
 	_class_instance(-1),
@@ -231,14 +225,6 @@ AD7781::AD7781(int bus, const char* path, spi_dev_e device) :
 	_debug_enabled = true;
 
 	_device_id.devid_s.devtype = DRV_GYR_DEVTYPE_L3GD20;
-
-	// default scale factors
-	_gyro_scale.x_offset = 0;
-	_gyro_scale.x_scale  = 1.0f;
-	_gyro_scale.y_offset = 0;
-	_gyro_scale.y_scale  = 1.0f;
-	_gyro_scale.z_offset = 0;
-	_gyro_scale.z_scale  = 1.0f;
 }
 
 AD7781::~AD7781()
@@ -441,16 +427,6 @@ AD7781::ioctl(struct file *filp, int cmd, unsigned long arg)
 	case GYROIOCGSAMPLERATE:
 		return _current_rate;
 
-	case GYROIOCSSCALE:
-		/* copy scale in */
-		memcpy(&_gyro_scale, (struct gyro_scale *) arg, sizeof(_gyro_scale));
-		return OK;
-
-	case GYROIOCGSCALE:
-		/* copy scale out */
-		memcpy((struct gyro_scale *) arg, &_gyro_scale, sizeof(_gyro_scale));
-		return OK;
-
 	case GYROIOCSRANGE:
 		/* arg should be in dps */
 		return set_range(arg);
@@ -638,19 +614,15 @@ AD7781::measure()
 
 	report.x_raw = raw_report.x;
 	report.y_raw = raw_report.y;
-
 	report.z_raw = raw_report.z;
 
 	report.temperature_raw = raw_report.temp;
 
-	report.x = ((report.x_raw * _gyro_range_scale) - _gyro_scale.x_offset) * _gyro_scale.x_scale;
-	report.y = ((report.y_raw * _gyro_range_scale) - _gyro_scale.y_offset) * _gyro_scale.y_scale;
-	report.z = ((report.z_raw * _gyro_range_scale) - _gyro_scale.z_offset) * _gyro_scale.z_scale;
+	report.x = report.x_raw;
+	report.y = report.y_raw;
+	report.z = report.z_raw;
 
 	report.temperature = AD7781_TEMP_OFFSET_CELSIUS - raw_report.temp;
-
-	report.scaling = _gyro_range_scale;
-	report.range_rad_s = _gyro_range_rad_s;
 
 	_reports->force(&report);
 
@@ -708,21 +680,8 @@ int
 AD7781::self_test()
 {
 	/* evaluate gyro offsets, complain if offset -> zero or larger than 6 dps */
-	if (fabsf(_gyro_scale.x_offset) > 0.1f || fabsf(_gyro_scale.x_offset) < 0.000001f)
-		return 1;
-	if (fabsf(_gyro_scale.x_scale - 1.0f) > 0.3f)
-		return 1;
-
-	if (fabsf(_gyro_scale.y_offset) > 0.1f || fabsf(_gyro_scale.y_offset) < 0.000001f)
-		return 1;
-	if (fabsf(_gyro_scale.y_scale - 1.0f) > 0.3f)
-		return 1;
-
-	if (fabsf(_gyro_scale.z_offset) > 0.1f || fabsf(_gyro_scale.z_offset) < 0.000001f)
-		return 1;
-	if (fabsf(_gyro_scale.z_scale - 1.0f) > 0.3f)
-		return 1;
-
+	//if (fabsf(_gyro_scale.z_scale - 1.0f) > 0.3f)
+	//	return 1;
 	return 0;
 }
 
