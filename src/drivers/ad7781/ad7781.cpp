@@ -303,16 +303,9 @@ AD7781::probe()
 	/* read dummy value to void to clear SPI statemachine on sensor */
 	(void)read_reg(ADDR_WHO_AM_I);
 
-	bool success = false;
-	uint8_t v = 0;
-
 	/* verify that the device is attached and functioning, accept
 	 * AD7781, */
-	if ((v=read_reg(ADDR_WHO_AM_I)) == WHO_I_AM) {
-		success = true;
-	}
-
-	if (success) {
+	if (read_reg(ADDR_WHO_AM_I) == WHO_I_AM) {
 		return OK;
 	}
 
