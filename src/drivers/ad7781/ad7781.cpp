@@ -66,7 +66,6 @@
 #include <drivers/device/ringbuffer.h>
 
 #include <board_config.h>
-#include <lib/conversion/rotation.h>
 
 #define AD7781_DEVICE_PATH "/dev/ad7781"
 
@@ -88,7 +87,7 @@ extern "C" { __EXPORT int ad7781_main(int argc, char *argv[]); }
 class AD7781 : public device::SPI
 {
 public:
-	AD7781(int bus, const char* path, spi_dev_e device, enum Rotation rotation);
+	AD7781(int bus, const char* path, spi_dev_e device);
 	virtual ~AD7781();
 
 	virtual int		init();
@@ -126,7 +125,6 @@ private:
 
 	unsigned		_current_rate;
 	unsigned		_current_bandwidth;
-	unsigned		_orientation;
 
 	unsigned		_read;
 
@@ -139,8 +137,6 @@ private:
 
 	/* true if an L3G4200D is detected */
 	bool	_is_l3g4200d;
-
-	enum Rotation		_rotation;
 
 	/**
 	 * Start automatic measurement.
@@ -220,7 +216,7 @@ private:
 };
 
 
-AD7781::AD7781(int bus, const char* path, spi_dev_e device, enum Rotation rotation) :
+AD7781::AD7781(int bus, const char* path, spi_dev_e device) :
 	SPI("AD7781", path, bus, device, SPIDEV_MODE3, 11*1000*1000 /* will be rounded to 10.4 MHz, within margins for AD7781 */),
 	_call{},
 	_call_interval(0),
@@ -233,7 +229,6 @@ AD7781::AD7781(int bus, const char* path, spi_dev_e device, enum Rotation rotati
 	_class_instance(-1),
 	_current_rate(0),
 	_current_bandwidth(50),
-	_orientation(SENSOR_BOARD_ROTATION_DEFAULT),
 	_read(0),
 	_sample_perf(perf_alloc(PC_ELAPSED, "l3gd20_read")),
 	_reschedules(perf_alloc(PC_COUNT, "l3gd20_reschedules")),
@@ -241,7 +236,6 @@ AD7781::AD7781(int bus, const char* path, spi_dev_e device, enum Rotation rotati
 	_bad_registers(perf_alloc(PC_COUNT, "l3gd20_bad_registers")),
 	_register_wait(0),
 	_is_l3g4200d(false),
-	_rotation(rotation),
 	_checked_next(0)
 {
 	// enable debug() calls
@@ -326,15 +320,12 @@ AD7781::probe()
 	/* verify that the device is attached and functioning, accept
 	 * AD7781, */
 	if ((v=read_reg(ADDR_WHO_AM_I)) == WHO_I_AM) {
-		_orientation = SENSOR_BOARD_ROTATION_DEFAULT;
 		success = true;
 	} else if ((v=read_reg(ADDR_WHO_AM_I)) == WHO_I_AM_H) {
-		_orientation = SENSOR_BOARD_ROTATION_180_DEG;
 		success = true;
 	} else if ((v=read_reg(ADDR_WHO_AM_I)) == WHO_I_AM_L3G4200D) {
 		/* Detect the L3G4200D used on AeroCore */
 		_is_l3g4200d = true;
-		_orientation = SENSOR_BOARD_ROTATION_DEFAULT;
 		success = true;
 	}
 
@@ -672,32 +663,8 @@ AD7781::measure()
 	report.timestamp = hrt_absolute_time();
         report.error_count = perf_event_count(_bad_registers);
 
-	switch (_orientation) {
-
-		case SENSOR_BOARD_ROTATION_000_DEG:
-			/* keep axes in place */
-			report.x_raw = raw_report.x;
-			report.y_raw = raw_report.y;
-			break;
-
-		case SENSOR_BOARD_ROTATION_090_DEG:
-			/* swap x and y */
-			report.x_raw = raw_report.y;
-			report.y_raw = raw_report.x;
-			break;
-
-		case SENSOR_BOARD_ROTATION_180_DEG:
-			/* swap x and y and negate both */
-			report.x_raw = ((raw_report.x == -32768) ? 32767 : -raw_report.x);
-			report.y_raw = ((raw_report.y == -32768) ? 32767 : -raw_report.y);
-			break;
-
-		case SENSOR_BOARD_ROTATION_270_DEG:
-			/* swap x and y and negate y */
-			report.x_raw = raw_report.y;
-			report.y_raw = ((raw_report.x == -32768) ? 32767 : -raw_report.x);
-			break;
-	}
+	report.x_raw = raw_report.x;
+	report.y_raw = raw_report.y;
 
 	report.z_raw = raw_report.z;
 
@@ -708,9 +675,6 @@ AD7781::measure()
 	report.z = ((report.z_raw * _gyro_range_scale) - _gyro_scale.z_offset) * _gyro_scale.z_scale;
 
 	report.temperature = AD7781_TEMP_OFFSET_CELSIUS - raw_report.temp;
-
-	// apply user specified rotation
-	rotate_3f(_rotation, report.x, report.y, report.z);
 
 	report.scaling = _gyro_range_scale;
 	report.range_rad_s = _gyro_range_rad_s;
@@ -798,7 +762,7 @@ namespace ad7781
 AD7781	*g_dev;
 
 void	usage();
-void	start(bool external_bus, enum Rotation rotation);
+void	start(bool external_bus);
 void	test();
 void	reset();
 void	info();
@@ -812,7 +776,7 @@ void	test_error();
  * started or failed to detect the sensor.
  */
 void
-start(bool external_bus, enum Rotation rotation)
+start(bool external_bus)
 {
 	int fd;
 
@@ -822,12 +786,12 @@ start(bool external_bus, enum Rotation rotation)
 	/* create the driver */
         if (external_bus) {
 #ifdef PX4_SPI_BUS_EXT
-		g_dev = new AD7781(PX4_SPI_BUS_EXT, AD7781_DEVICE_PATH, (spi_dev_e)PX4_SPIDEV_EXT_GYRO, rotation);
+		g_dev = new AD7781(PX4_SPI_BUS_EXT, AD7781_DEVICE_PATH, (spi_dev_e)PX4_SPIDEV_EXT_GYRO);
 #else
 		errx(0, "External SPI not available");
 #endif
 	} else {
-		g_dev = new AD7781(PX4_SPI_BUS_SENSORS, AD7781_DEVICE_PATH, (spi_dev_e)PX4_SPIDEV_GYRO, rotation);
+		g_dev = new AD7781(PX4_SPI_BUS_SENSORS, AD7781_DEVICE_PATH, (spi_dev_e)PX4_SPIDEV_GYRO);
 	}
 
 	if (g_dev == nullptr)
@@ -979,7 +943,6 @@ usage()
 	warnx("missing command: try 'start', 'info', 'test', 'reset', 'testerror' or 'regdump'");
 	warnx("options:");
 	warnx("    -X    (external bus)");
-	warnx("    -R rotation");
 }
 
 } // namespace
@@ -989,16 +952,12 @@ ad7781_main(int argc, char *argv[])
 {
 	bool external_bus = false;
 	int ch;
-	enum Rotation rotation = ROTATION_NONE;
 
 	/* jump over start/off/etc and look at options first */
 	while ((ch = getopt(argc, argv, "XR:")) != EOF) {
 		switch (ch) {
 		case 'X':
 			external_bus = true;
-			break;
-		case 'R':
-			rotation = (enum Rotation)atoi(optarg);
 			break;
 		default:
 			ad7781::usage();
@@ -1013,7 +972,7 @@ ad7781_main(int argc, char *argv[])
 
 	 */
 	if (!strcmp(verb, "start"))
-		ad7781::start(external_bus, rotation);
+		ad7781::start(external_bus);
 
 	/*
 	 * Test the driver/device.
