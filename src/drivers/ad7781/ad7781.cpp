@@ -171,11 +171,6 @@ private:
 	void			reset();
 
 	/**
-	 * disable I2C on the chip
-	 */
-	void			disable_i2c();
-
-	/**
 	 * Get the internal / external state
 	 *
 	 * @return true if the sensor is not on the main MCU board
@@ -237,35 +232,6 @@ private:
 	 * @param value		The new value to write.
 	 */
 	void			write_checked_reg(unsigned reg, uint8_t value);
-
-	/**
-	 * Set the L3GD20 measurement range.
-	 *
-	 * @param max_dps	The measurement range is set to permit reading at least
-	 *			this rate in degrees per second.
-	 *			Zero selects the maximum supported range.
-	 * @return		OK if the value can be supported, -ERANGE otherwise.
-	 */
-	int			set_range(unsigned max_dps);
-
-	/**
-	 * Set the L3GD20 internal sampling frequency.
-	 *
-	 * @param frequency	The internal sampling frequency is set to not less than
-	 *			this value.
-	 *			Zero selects the maximum rate supported.
-	 * @return		OK if the value can be supported.
-	 */
-	int			set_samplerate(unsigned frequency, unsigned bandwidth);
-
-	/**
-	 * Set the lowpass filter of the driver
-	 *
-	 * @param samplerate	The current samplerate
-	 * @param frequency	The cutoff frequency for the lowpass filter
-	 */
-	void			set_driver_lowpass_filter(float samplerate, float bandwidth);
-
 	/**
 	 * Self test
 	 *
@@ -647,115 +613,6 @@ AD7781::modify_reg(unsigned reg, uint8_t clearbits, uint8_t setbits)
 	write_checked_reg(reg, val);
 }
 
-int
-AD7781::set_range(unsigned max_dps)
-{
-	uint8_t bits = REG4_BDU;
-	float new_range_scale_dps_digit;
-	float new_range;
-
-	if (max_dps == 0) {
-		max_dps = 2000;
-	}
-	if (max_dps <= 250) {
-		new_range = 250;
-		bits |= RANGE_250DPS;
-		new_range_scale_dps_digit = 8.75e-3f;
-
-	} else if (max_dps <= 500) {
-		new_range = 500;
-		bits |= RANGE_500DPS;
-		new_range_scale_dps_digit = 17.5e-3f;
-
-	} else if (max_dps <= 2000) {
-		new_range = 2000;
-		bits |= RANGE_2000DPS;
-		new_range_scale_dps_digit = 70e-3f;
-
-	} else {
-		return -EINVAL;
-	}
-
-	_gyro_range_rad_s = new_range / 180.0f * M_PI_F;
-	_gyro_range_scale = new_range_scale_dps_digit / 180.0f * M_PI_F;
-	write_checked_reg(ADDR_CTRL_REG4, bits);
-
-	return OK;
-}
-
-int
-AD7781::set_samplerate(unsigned frequency, unsigned bandwidth)
-{
-	uint8_t bits = REG1_POWER_NORMAL | REG1_Z_ENABLE | REG1_Y_ENABLE | REG1_X_ENABLE;
-
-	if (frequency == 0 || frequency == GYRO_SAMPLERATE_DEFAULT) {
-		frequency = _is_l3g4200d ? 800 : 760;
-	}
-
-	/*
-	 * Use limits good for H or non-H models. Rates are slightly different
-	 * for L3G4200D part but register settings are the same.
-	 */
-	if (frequency <= 100) {
-		_current_rate = _is_l3g4200d ? 100 : 95;
-		_current_bandwidth = 25;
-		bits |= RATE_95HZ_LP_25HZ;
-	} else if (frequency <= 200) {
-		_current_rate = _is_l3g4200d ? 200 : 190;
-
-		if (bandwidth <= 25) {
-			_current_bandwidth = 25;
-			bits |= RATE_190HZ_LP_25HZ;
-		} else if (bandwidth <= 50) {
-			_current_bandwidth = 50;
-			bits |= RATE_190HZ_LP_50HZ;
-		} else {
-			_current_bandwidth = 70;
-			bits |= RATE_190HZ_LP_70HZ;
-		}
-	} else if (frequency <= 400) {
-		_current_rate = _is_l3g4200d ? 400 : 380;
-
-		if (bandwidth <= 25) {
-			_current_bandwidth = 25;
-			bits |= RATE_380HZ_LP_25HZ;
-		} else if (bandwidth <= 50) {
-			_current_bandwidth = 50;
-			bits |= RATE_380HZ_LP_50HZ;
-		} else {
-			_current_bandwidth = _is_l3g4200d ? 110 : 100;
-			bits |= RATE_380HZ_LP_100HZ;
-		}
-	} else if (frequency <= 800) {
-		_current_rate = _is_l3g4200d ? 800 : 760;
-		if (bandwidth <= 30) {
-			_current_bandwidth = 30;
-			bits |= RATE_760HZ_LP_30HZ;
-		} else if (bandwidth <= 50) {
-			_current_bandwidth = 50;
-			bits |= RATE_760HZ_LP_50HZ;
-		} else {
-			_current_bandwidth = _is_l3g4200d ? 110 : 100;
-			bits |= RATE_760HZ_LP_100HZ;
-		}
-
-	} else {
-		return -EINVAL;
-	}
-
-	write_checked_reg(ADDR_CTRL_REG1, bits);
-
-	return OK;
-}
-
-void
-AD7781::set_driver_lowpass_filter(float samplerate, float bandwidth)
-{
-	_gyro_filter_x.set_cutoff_frequency(samplerate, bandwidth);
-	_gyro_filter_y.set_cutoff_frequency(samplerate, bandwidth);
-	_gyro_filter_z.set_cutoff_frequency(samplerate, bandwidth);
-}
-
 void
 AD7781::start()
 {
@@ -773,26 +630,6 @@ void
 AD7781::stop()
 {
 	hrt_cancel(&_call);
-}
-
-void
-AD7781::disable_i2c(void)
-{
-	uint8_t retries = 10;
-	while (retries--) {
-		// add retries
-		uint8_t a = read_reg(0x05);
-		write_reg(0x05, (0x20 | a));
-		if (read_reg(0x05) == (a | 0x20)) {
-			// this sets the I2C_DIS bit on the
-			// AD7781H. The aD7781 datasheet doesn't
-			// mention this register, but it does seem to
-			// accept it.
-			write_checked_reg(ADDR_LOW_ODR, 0x08);
-			return;
-		}
-	}
-	debug("FAILED TO DISABLE I2C");
 }
 
 void
@@ -1027,13 +864,6 @@ AD7781::print_registers()
 		}
 	}
 	printf("\n");
-}
-
-void
-AD7781::test_error()
-{
-	// trigger a deliberate error
-        write_reg(ADDR_CTRL_REG3, 0);
 }
 
 int
