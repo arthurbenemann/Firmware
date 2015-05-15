@@ -147,14 +147,6 @@ private:
 
 	enum Rotation		_rotation;
 
-	// this is used to support runtime checking of key
-	// configuration registers to detect SPI bus errors and sensor
-	// reset
-#define L3GD20_NUM_CHECKED_REGISTERS 8
-	static const uint8_t	_checked_registers[L3GD20_NUM_CHECKED_REGISTERS];
-	uint8_t			_checked_values[L3GD20_NUM_CHECKED_REGISTERS];
-	uint8_t			_checked_next;
-
 	/**
 	 * Start automatic measurement.
 	 */
@@ -189,11 +181,6 @@ private:
 	static void		measure_trampoline(void *arg);
 
 	/**
-	 * check key registers for correct values
-	 */
-	void			check_registers(void);
-
-	/**
 	 * Fetch measurements from the sensor and update the report ring.
 	 */
 	void			measure();
@@ -226,13 +213,6 @@ private:
 	void			modify_reg(unsigned reg, uint8_t clearbits, uint8_t setbits);
 
 	/**
-	 * Write a register in the L3GD20, updating _checked_values
-	 *
-	 * @param reg		The register to write.
-	 * @param value		The new value to write.
-	 */
-	void			write_checked_reg(unsigned reg, uint8_t value);
-	/**
 	 * Self test
 	 *
 	 * @return 0 on success, 1 on failure
@@ -244,18 +224,6 @@ private:
 	AD7781 operator=(const AD7781&);
 };
 
-/*
-  list of registers that will be checked in check_registers(). Note
-  that ADDR_WHO_AM_I must be first in the list.
- */
-const uint8_t L3GD20::_checked_registers[L3GD20_NUM_CHECKED_REGISTERS] = { ADDR_WHO_AM_I,
-                                                                           ADDR_CTRL_REG1,
-                                                                           ADDR_CTRL_REG2,
-                                                                           ADDR_CTRL_REG3,
-                                                                           ADDR_CTRL_REG4,
-                                                                           ADDR_CTRL_REG5,
-                                                                           ADDR_FIFO_CTRL_REG,
-									   ADDR_LOW_ODR };
 
 AD7781::AD7781(int bus, const char* path, spi_dev_e device, enum Rotation rotation) :
 	SPI("AD7781", path, bus, device, SPIDEV_MODE3, 11*1000*1000 /* will be rounded to 10.4 MHz, within margins for AD7781 */),
@@ -379,7 +347,6 @@ AD7781::probe()
 	}
 
 	if (success) {
-		_checked_values[0] = v;
 		return OK;
 	}
 
@@ -591,18 +558,6 @@ AD7781::write_reg(unsigned reg, uint8_t value)
 }
 
 void
-AD7781::write_checked_reg(unsigned reg, uint8_t value)
-{
-	write_reg(reg, value);
-	for (uint8_t i=0; i<AD7781_NUM_CHECKED_REGISTERS; i++) {
-		if (reg == _checked_registers[i]) {
-			_checked_values[i] = value;
-		}
-	}
-}
-
-
-void
 AD7781::modify_reg(unsigned reg, uint8_t clearbits, uint8_t setbits)
 {
 	uint8_t	val;
@@ -673,33 +628,6 @@ AD7781::measure_trampoline(void *arg)
 #else
 # define AD7781_USE_DRDY 0
 #endif
-
-void
-AD7781::check_registers(void)
-{
-	uint8_t v;
-	if ((v=read_reg(_checked_registers[_checked_next])) != _checked_values[_checked_next]) {
-		/*
-		  if we get the wrong value then we know the SPI bus
-		  or sensor is very sick. We set _register_wait to 20
-		  and wait until we have seen 20 good values in a row
-		  before we consider the sensor to be OK again.
-		 */
-		perf_count(_bad_registers);
-
-		/*
-		  try to fix the bad register value. We only try to
-		  fix one per loop to prevent a bad sensor hogging the
-		  bus. We skip zero as that is the WHO_AM_I, which
-		  is not writeable
-		 */
-		if (_checked_next != 0) {
-			write_reg(_checked_registers[_checked_next], _checked_values[_checked_next]);
-		}
-		_register_wait = 20;
-        }
-        _checked_next = (_checked_next+1) % AD7781_NUM_CHECKED_REGISTERS;
-}
 
 void
 AD7781::measure()
