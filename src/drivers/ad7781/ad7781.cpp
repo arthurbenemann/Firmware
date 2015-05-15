@@ -66,7 +66,6 @@
 #include <drivers/device/ringbuffer.h>
 
 #include <board_config.h>
-#include <mathlib/math/filter/LowPassFilter2p.hpp>
 #include <lib/conversion/rotation.h>
 
 #define AD7781_DEVICE_PATH "/dev/ad7781"
@@ -137,10 +136,6 @@ private:
 	perf_counter_t		_bad_registers;
 
 	uint8_t			_register_wait;
-
-	math::LowPassFilter2p	_gyro_filter_x;
-	math::LowPassFilter2p	_gyro_filter_y;
-	math::LowPassFilter2p	_gyro_filter_z;
 
 	/* true if an L3G4200D is detected */
 	bool	_is_l3g4200d;
@@ -245,9 +240,6 @@ AD7781::AD7781(int bus, const char* path, spi_dev_e device, enum Rotation rotati
 	_errors(perf_alloc(PC_COUNT, "l3gd20_errors")),
 	_bad_registers(perf_alloc(PC_COUNT, "l3gd20_bad_registers")),
 	_register_wait(0),
-	_gyro_filter_x(L3GD20_DEFAULT_RATE, L3GD20_DEFAULT_FILTER_FREQ),
-	_gyro_filter_y(L3GD20_DEFAULT_RATE, L3GD20_DEFAULT_FILTER_FREQ),
-	_gyro_filter_z(L3GD20_DEFAULT_RATE, L3GD20_DEFAULT_FILTER_FREQ),
 	_is_l3g4200d(false),
 	_rotation(rotation),
 	_checked_next(0)
@@ -440,10 +432,7 @@ AD7781::ioctl(struct file *filp, int cmd, unsigned long arg)
 					/* XXX this is a bit shady, but no other way to adjust... */
 					_call.period = _call_interval = ticks;
 
-					/* adjust filters */
-					float cutoff_freq_hz = _gyro_filter_x.get_cutoff_freq();
-					float sample_rate = 1.0e6f/ticks;
-					set_driver_lowpass_filter(sample_rate, cutoff_freq_hz);
+					
 
 					/* if we need to start the poll state machine, do it */
 					if (want_start)
@@ -487,18 +476,6 @@ AD7781::ioctl(struct file *filp, int cmd, unsigned long arg)
 
 	case GYROIOCGSAMPLERATE:
 		return _current_rate;
-
-	case GYROIOCSLOWPASS: {
-		// set the software lowpass cut-off in Hz
-		float cutoff_freq_hz = arg;
-		float sample_rate = 1.0e6f / _call_interval;
-		set_driver_lowpass_filter(sample_rate, cutoff_freq_hz);
-
-		return OK;
-	}
-
-	case GYROIOCGLOWPASS:
-		return _gyro_filter_x.get_cutoff_freq();
 
 	case GYROIOCSSCALE:
 		/* copy scale in */
@@ -729,10 +706,6 @@ AD7781::measure()
 	report.x = ((report.x_raw * _gyro_range_scale) - _gyro_scale.x_offset) * _gyro_scale.x_scale;
 	report.y = ((report.y_raw * _gyro_range_scale) - _gyro_scale.y_offset) * _gyro_scale.y_scale;
 	report.z = ((report.z_raw * _gyro_range_scale) - _gyro_scale.z_offset) * _gyro_scale.z_scale;
-
-	report.x = _gyro_filter_x.apply(report.x);
-	report.y = _gyro_filter_y.apply(report.y);
-	report.z = _gyro_filter_z.apply(report.z);
 
 	report.temperature = AD7781_TEMP_OFFSET_CELSIUS - raw_report.temp;
 
