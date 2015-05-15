@@ -1,9 +1,9 @@
 #
-# LSM303D accel/mag driver
+# AD7781 20bit ADC
 #
 
-MODULE_COMMAND	 = l3gd20
-SRCS		 = l3gd20.cpp
+MODULE_COMMAND	 = ad7781
+SRCS		 = ad7781.cpp
 
 MODULE_STACKSIZE	= 1200
 

@@ -32,11 +32,9 @@
  ****************************************************************************/
 
 /**
- * @file l3gd20.cpp
- * Driver for the ST L3GD20 MEMS and L3GD20H mems gyros connected via SPI.
+ * @file ad7781.cpp
+ * Driver for the Analog Devices AD7781 20bit ADC connected via SPI.
  *
- * Note: With the exception of the self-test feature, the ST L3G4200D is
- *       also supported by this driver.
  */
 
 #include <nuttx/config.h>
@@ -71,7 +69,7 @@
 #include <mathlib/math/filter/LowPassFilter2p.hpp>
 #include <lib/conversion/rotation.h>
 
-#define L3GD20_DEVICE_PATH "/dev/l3gd20"
+#define AD7781_DEVICE_PATH "/dev/ad7781"
 
 /* oddly, ERROR is not defined for c++ */
 #ifdef ERROR
@@ -188,14 +186,13 @@ static const int ERROR = -1;
 #ifndef SENSOR_BOARD_ROTATION_DEFAULT
 #define SENSOR_BOARD_ROTATION_DEFAULT		SENSOR_BOARD_ROTATION_270_DEG
 #endif
+extern "C" { __EXPORT int ad7781_main(int argc, char *argv[]); }
 
-extern "C" { __EXPORT int l3gd20_main(int argc, char *argv[]); }
-
-class L3GD20 : public device::SPI
+class AD7781 : public device::SPI
 {
 public:
-	L3GD20(int bus, const char* path, spi_dev_e device, enum Rotation rotation);
-	virtual ~L3GD20();
+	AD7781(int bus, const char* path, spi_dev_e device, enum Rotation rotation);
+	virtual ~AD7781();
 
 	virtual int		init();
 
@@ -309,7 +306,7 @@ private:
 	void			measure();
 
 	/**
-	 * Read a register from the L3GD20
+	 * Read a register from the AD7781
 	 *
 	 * @param		The register to read.
 	 * @return		The value that was read.
@@ -317,7 +314,7 @@ private:
 	uint8_t			read_reg(unsigned reg);
 
 	/**
-	 * Write a register in the L3GD20
+	 * Write a register in the AD7781
 	 *
 	 * @param reg		The register to write.
 	 * @param value		The new value to write.
@@ -325,7 +322,7 @@ private:
 	void			write_reg(unsigned reg, uint8_t value);
 
 	/**
-	 * Modify a register in the L3GD20
+	 * Modify a register in the AD7781
 	 *
 	 * Bits are cleared before bits are set.
 	 *
@@ -379,8 +376,8 @@ private:
 	 int 			self_test();
 
 	/* this class does not allow copying */
-	L3GD20(const L3GD20&);
-	L3GD20 operator=(const L3GD20&);
+	AD7781(const AD7781&);
+	AD7781 operator=(const AD7781&);
 };
 
 /*
@@ -396,8 +393,8 @@ const uint8_t L3GD20::_checked_registers[L3GD20_NUM_CHECKED_REGISTERS] = { ADDR_
                                                                            ADDR_FIFO_CTRL_REG,
 									   ADDR_LOW_ODR };
 
-L3GD20::L3GD20(int bus, const char* path, spi_dev_e device, enum Rotation rotation) :
-	SPI("L3GD20", path, bus, device, SPIDEV_MODE3, 11*1000*1000 /* will be rounded to 10.4 MHz, within margins for L3GD20 */),
+AD7781::AD7781(int bus, const char* path, spi_dev_e device, enum Rotation rotation) :
+	SPI("AD7781", path, bus, device, SPIDEV_MODE3, 11*1000*1000 /* will be rounded to 10.4 MHz, within margins for AD7781 */),
 	_call{},
 	_call_interval(0),
 	_reports(nullptr),
@@ -437,7 +434,7 @@ L3GD20::L3GD20(int bus, const char* path, spi_dev_e device, enum Rotation rotati
 	_gyro_scale.z_scale  = 1.0f;
 }
 
-L3GD20::~L3GD20()
+AD7781::~AD7781()
 {
 	/* make sure we are truly inactive */
 	stop();
@@ -457,7 +454,7 @@ L3GD20::~L3GD20()
 }
 
 int
-L3GD20::init()
+AD7781::init()
 {
 	int ret = ERROR;
 
@@ -494,7 +491,7 @@ out:
 }
 
 int
-L3GD20::probe()
+AD7781::probe()
 {
 	/* read dummy value to void to clear SPI statemachine on sensor */
 	(void)read_reg(ADDR_WHO_AM_I);
@@ -503,7 +500,7 @@ L3GD20::probe()
 	uint8_t v = 0;
 
 	/* verify that the device is attached and functioning, accept
-	 * L3GD20, L3GD20H and L3G4200D */
+	 * AD7781, */
 	if ((v=read_reg(ADDR_WHO_AM_I)) == WHO_I_AM) {
 		_orientation = SENSOR_BOARD_ROTATION_DEFAULT;
 		success = true;
@@ -526,7 +523,7 @@ L3GD20::probe()
 }
 
 ssize_t
-L3GD20::read(struct file *filp, char *buffer, size_t buflen)
+AD7781::read(struct file *filp, char *buffer, size_t buflen)
 {
 	unsigned count = buflen / sizeof(struct gyro_report);
 	struct gyro_report *gbuf = reinterpret_cast<struct gyro_report *>(buffer);
@@ -568,7 +565,7 @@ L3GD20::read(struct file *filp, char *buffer, size_t buflen)
 }
 
 int
-L3GD20::ioctl(struct file *filp, int cmd, unsigned long arg)
+AD7781::ioctl(struct file *filp, int cmd, unsigned long arg)
 {
 	switch (cmd) {
 
@@ -594,7 +591,7 @@ L3GD20::ioctl(struct file *filp, int cmd, unsigned long arg)
 				if (_is_l3g4200d) {
 					return ioctl(filp, SENSORIOCSPOLLRATE, L3G4200D_DEFAULT_RATE);
 				}
-				return ioctl(filp, SENSORIOCSPOLLRATE, L3GD20_DEFAULT_RATE);
+				return ioctl(filp, SENSORIOCSPOLLRATE, AD7781_DEFAULT_RATE);
 
 				/* adjust to a legal polling interval in Hz */
 			default: {
@@ -706,7 +703,7 @@ L3GD20::ioctl(struct file *filp, int cmd, unsigned long arg)
 }
 
 uint8_t
-L3GD20::read_reg(unsigned reg)
+AD7781::read_reg(unsigned reg)
 {
 	uint8_t cmd[2];
 
@@ -719,7 +716,7 @@ L3GD20::read_reg(unsigned reg)
 }
 
 void
-L3GD20::write_reg(unsigned reg, uint8_t value)
+AD7781::write_reg(unsigned reg, uint8_t value)
 {
 	uint8_t	cmd[2];
 
@@ -730,10 +727,10 @@ L3GD20::write_reg(unsigned reg, uint8_t value)
 }
 
 void
-L3GD20::write_checked_reg(unsigned reg, uint8_t value)
+AD7781::write_checked_reg(unsigned reg, uint8_t value)
 {
 	write_reg(reg, value);
-	for (uint8_t i=0; i<L3GD20_NUM_CHECKED_REGISTERS; i++) {
+	for (uint8_t i=0; i<AD7781_NUM_CHECKED_REGISTERS; i++) {
 		if (reg == _checked_registers[i]) {
 			_checked_values[i] = value;
 		}
@@ -742,7 +739,7 @@ L3GD20::write_checked_reg(unsigned reg, uint8_t value)
 
 
 void
-L3GD20::modify_reg(unsigned reg, uint8_t clearbits, uint8_t setbits)
+AD7781::modify_reg(unsigned reg, uint8_t clearbits, uint8_t setbits)
 {
 	uint8_t	val;
 
@@ -753,7 +750,7 @@ L3GD20::modify_reg(unsigned reg, uint8_t clearbits, uint8_t setbits)
 }
 
 int
-L3GD20::set_range(unsigned max_dps)
+AD7781::set_range(unsigned max_dps)
 {
 	uint8_t bits = REG4_BDU;
 	float new_range_scale_dps_digit;
@@ -789,7 +786,7 @@ L3GD20::set_range(unsigned max_dps)
 }
 
 int
-L3GD20::set_samplerate(unsigned frequency, unsigned bandwidth)
+AD7781::set_samplerate(unsigned frequency, unsigned bandwidth)
 {
 	uint8_t bits = REG1_POWER_NORMAL | REG1_Z_ENABLE | REG1_Y_ENABLE | REG1_X_ENABLE;
 
@@ -854,7 +851,7 @@ L3GD20::set_samplerate(unsigned frequency, unsigned bandwidth)
 }
 
 void
-L3GD20::set_driver_lowpass_filter(float samplerate, float bandwidth)
+AD7781::set_driver_lowpass_filter(float samplerate, float bandwidth)
 {
 	_gyro_filter_x.set_cutoff_frequency(samplerate, bandwidth);
 	_gyro_filter_y.set_cutoff_frequency(samplerate, bandwidth);
@@ -862,7 +859,7 @@ L3GD20::set_driver_lowpass_filter(float samplerate, float bandwidth)
 }
 
 void
-L3GD20::start()
+AD7781::start()
 {
 	/* make sure we are stopped first */
 	stop();
@@ -871,17 +868,17 @@ L3GD20::start()
 	_reports->flush();
 
 	/* start polling at the specified rate */
-	hrt_call_every(&_call, 1000, _call_interval, (hrt_callout)&L3GD20::measure_trampoline, this);
+	hrt_call_every(&_call, 1000, _call_interval, (hrt_callout)&AD7781::measure_trampoline, this);
 }
 
 void
-L3GD20::stop()
+AD7781::stop()
 {
 	hrt_cancel(&_call);
 }
 
 void
-L3GD20::disable_i2c(void)
+AD7781::disable_i2c(void)
 {
 	uint8_t retries = 10;
 	while (retries--) {
@@ -890,7 +887,7 @@ L3GD20::disable_i2c(void)
 		write_reg(0x05, (0x20 | a));
 		if (read_reg(0x05) == (a | 0x20)) {
 			// this sets the I2C_DIS bit on the
-			// L3GD20H. The l3gd20 datasheet doesn't
+			// AD7781H. The aD7781 datasheet doesn't
 			// mention this register, but it does seem to
 			// accept it.
 			write_checked_reg(ADDR_LOW_ODR, 0x08);
@@ -901,7 +898,7 @@ L3GD20::disable_i2c(void)
 }
 
 void
-L3GD20::reset()
+AD7781::reset()
 {
 	// ensure the chip doesn't interpret any other bus traffic as I2C
 	disable_i2c();
@@ -921,29 +918,29 @@ L3GD20::reset()
 	write_checked_reg(ADDR_FIFO_CTRL_REG, FIFO_CTRL_BYPASS_MODE);
 
 	set_samplerate(0, _current_bandwidth); // 760Hz or 800Hz
-	set_range(L3GD20_DEFAULT_RANGE_DPS);
-	set_driver_lowpass_filter(L3GD20_DEFAULT_RATE, L3GD20_DEFAULT_FILTER_FREQ);
+	set_range(AD7781_DEFAULT_RANGE_DPS);
+	set_driver_lowpass_filter(AD7781_DEFAULT_RATE, AD7781_DEFAULT_FILTER_FREQ);
 
 	_read = 0;
 }
 
 void
-L3GD20::measure_trampoline(void *arg)
+AD7781::measure_trampoline(void *arg)
 {
-	L3GD20 *dev = (L3GD20 *)arg;
+	AD7781 *dev = (AD7781 *)arg;
 
 	/* make another measurement */
 	dev->measure();
 }
 
 #ifdef GPIO_EXTI_GYRO_DRDY
-# define L3GD20_USE_DRDY 1
+# define AD7781_USE_DRDY 1
 #else
-# define L3GD20_USE_DRDY 0
+# define AD7781_USE_DRDY 0
 #endif
 
 void
-L3GD20::check_registers(void)
+AD7781::check_registers(void)
 {
 	uint8_t v;
 	if ((v=read_reg(_checked_registers[_checked_next])) != _checked_values[_checked_next]) {
@@ -966,11 +963,11 @@ L3GD20::check_registers(void)
 		}
 		_register_wait = 20;
         }
-        _checked_next = (_checked_next+1) % L3GD20_NUM_CHECKED_REGISTERS;
+        _checked_next = (_checked_next+1) % AD7781_NUM_CHECKED_REGISTERS;
 }
 
 void
-L3GD20::measure()
+AD7781::measure()
 {
 	/* status register and data as read back from the device */
 #pragma pack(push, 1)
@@ -991,7 +988,7 @@ L3GD20::measure()
 
         check_registers();
 
-#if L3GD20_USE_DRDY
+#if AD7781_USE_DRDY
 	// if the gyro doesn't have any data ready then re-schedule
 	// for 100 microseconds later. This ensures we don't double
 	// read a value and then miss the next value
@@ -1008,7 +1005,7 @@ L3GD20::measure()
 	raw_report.cmd = ADDR_OUT_TEMP | DIR_READ | ADDR_INCREMENT;
 	transfer((uint8_t *)&raw_report, (uint8_t *)&raw_report, sizeof(raw_report));
 
-#if L3GD20_USE_DRDY
+#if AD7781_USE_DRDY
         if (_bus == PX4_SPI_BUS_SENSORS && (raw_report.status & 0xF) != 0xF) {
             /*
               we waited for DRDY, but did not see DRDY on all axes
@@ -1074,7 +1071,7 @@ L3GD20::measure()
 	report.y = _gyro_filter_y.apply(report.y);
 	report.z = _gyro_filter_z.apply(report.z);
 
-	report.temperature = L3GD20_TEMP_OFFSET_CELSIUS - raw_report.temp;
+	report.temperature = AD7781_TEMP_OFFSET_CELSIUS - raw_report.temp;
 
 	// apply user specified rotation
 	rotate_3f(_rotation, report.x, report.y, report.z);
@@ -1100,7 +1097,7 @@ L3GD20::measure()
 }
 
 void
-L3GD20::print_info()
+AD7781::print_info()
 {
 	printf("gyro reads:          %u\n", _read);
 	perf_print_counter(_sample_perf);
@@ -1109,7 +1106,7 @@ L3GD20::print_info()
 	perf_print_counter(_bad_registers);
 	_reports->print_info("report queue");
         ::printf("checked_next: %u\n", _checked_next);
-        for (uint8_t i=0; i<L3GD20_NUM_CHECKED_REGISTERS; i++) {
+        for (uint8_t i=0; i<AD7781_NUM_CHECKED_REGISTERS; i++) {
             uint8_t v = read_reg(_checked_registers[i]);
             if (v != _checked_values[i]) {
                 ::printf("reg %02x:%02x should be %02x\n",
@@ -1121,9 +1118,9 @@ L3GD20::print_info()
 }
 
 void
-L3GD20::print_registers()
+AD7781::print_registers()
 {
-	printf("L3GD20 registers\n");
+	printf("AD7781 registers\n");
 	for (uint8_t reg=0; reg<=0x40; reg++) {
 		uint8_t v = read_reg(reg);
 		printf("%02x:%02x ",(unsigned)reg, (unsigned)v);
@@ -1135,14 +1132,14 @@ L3GD20::print_registers()
 }
 
 void
-L3GD20::test_error()
+AD7781::test_error()
 {
 	// trigger a deliberate error
         write_reg(ADDR_CTRL_REG3, 0);
 }
 
 int
-L3GD20::self_test()
+AD7781::self_test()
 {
 	/* evaluate gyro offsets, complain if offset -> zero or larger than 6 dps */
 	if (fabsf(_gyro_scale.x_offset) > 0.1f || fabsf(_gyro_scale.x_offset) < 0.000001f)
@@ -1166,10 +1163,10 @@ L3GD20::self_test()
 /**
  * Local functions in support of the shell command.
  */
-namespace l3gd20
+namespace ad7781
 {
 
-L3GD20	*g_dev;
+AD7781	*g_dev;
 
 void	usage();
 void	start(bool external_bus, enum Rotation rotation);
@@ -1196,12 +1193,12 @@ start(bool external_bus, enum Rotation rotation)
 	/* create the driver */
         if (external_bus) {
 #ifdef PX4_SPI_BUS_EXT
-		g_dev = new L3GD20(PX4_SPI_BUS_EXT, L3GD20_DEVICE_PATH, (spi_dev_e)PX4_SPIDEV_EXT_GYRO, rotation);
+		g_dev = new AD7781(PX4_SPI_BUS_EXT, AD7781_DEVICE_PATH, (spi_dev_e)PX4_SPIDEV_EXT_GYRO, rotation);
 #else
 		errx(0, "External SPI not available");
 #endif
 	} else {
-		g_dev = new L3GD20(PX4_SPI_BUS_SENSORS, L3GD20_DEVICE_PATH, (spi_dev_e)PX4_SPIDEV_GYRO, rotation);
+		g_dev = new AD7781(PX4_SPI_BUS_SENSORS, AD7781_DEVICE_PATH, (spi_dev_e)PX4_SPIDEV_GYRO, rotation);
 	}
 
 	if (g_dev == nullptr)
@@ -1211,7 +1208,7 @@ start(bool external_bus, enum Rotation rotation)
 		goto fail;
 
 	/* set the poll rate to default, starts automatic data collection */
-	fd = open(L3GD20_DEVICE_PATH, O_RDONLY);
+	fd = open(AD7781_DEVICE_PATH, O_RDONLY);
 
 	if (fd < 0)
 		goto fail;
@@ -1245,10 +1242,10 @@ test()
 	ssize_t sz;
 
 	/* get the driver */
-	fd_gyro = open(L3GD20_DEVICE_PATH, O_RDONLY);
+	fd_gyro = open(AD7781_DEVICE_PATH, O_RDONLY);
 
 	if (fd_gyro < 0)
-		err(1, "%s open failed", L3GD20_DEVICE_PATH);
+		err(1, "%s open failed", AD7781_DEVICE_PATH);
 
 	/* reset to manual polling */
 	if (ioctl(fd_gyro, SENSORIOCSPOLLRATE, SENSOR_POLLRATE_MANUAL) < 0)
@@ -1286,7 +1283,7 @@ test()
 void
 reset()
 {
-	int fd = open(L3GD20_DEVICE_PATH, O_RDONLY);
+	int fd = open(AD7781_DEVICE_PATH, O_RDONLY);
 
 	if (fd < 0)
 		err(1, "failed ");
@@ -1359,7 +1356,7 @@ usage()
 } // namespace
 
 int
-l3gd20_main(int argc, char *argv[])
+ad7781_main(int argc, char *argv[])
 {
 	bool external_bus = false;
 	int ch;
@@ -1375,7 +1372,7 @@ l3gd20_main(int argc, char *argv[])
 			rotation = (enum Rotation)atoi(optarg);
 			break;
 		default:
-			l3gd20::usage();
+			ad7781::usage();
 			exit(0);
 		}
 	}
@@ -1387,37 +1384,37 @@ l3gd20_main(int argc, char *argv[])
 
 	 */
 	if (!strcmp(verb, "start"))
-		l3gd20::start(external_bus, rotation);
+		ad7781::start(external_bus, rotation);
 
 	/*
 	 * Test the driver/device.
 	 */
 	if (!strcmp(verb, "test"))
-		l3gd20::test();
+		ad7781::test();
 
 	/*
 	 * Reset the driver.
 	 */
 	if (!strcmp(verb, "reset"))
-		l3gd20::reset();
+		ad7781::reset();
 
 	/*
 	 * Print driver information.
 	 */
 	if (!strcmp(verb, "info"))
-		l3gd20::info();
+		ad7781::info();
 
 	/*
 	 * Print register information.
 	 */
 	if (!strcmp(verb, "regdump"))
-		l3gd20::regdump();
+		ad7781::regdump();
 
 	/*
 	 * trigger an error
 	 */
 	if (!strcmp(verb, "testerror"))
-		l3gd20::test_error();
+		ad7781::test_error();
 
 	errx(1, "unrecognized command, try 'start', 'test', 'reset', 'info', 'testerror' or 'regdump'");
 }
