@@ -386,10 +386,6 @@ AD7781::ioctl(struct file *filp, int cmd, unsigned long arg)
 	case SENSORIOCGQUEUEDEPTH:
 		return _reports->size();
 
-	case SENSORIOCRESET:
-		reset();
-		return OK;
-
 	default:
 		/* give it to the superclass */
 		return SPI::ioctl(filp, cmd, arg);
@@ -680,28 +676,6 @@ test()
 }
 
 /**
- * Reset the driver.
- */
-void
-reset()
-{
-	int fd = open(AD7781_DEVICE_PATH, O_RDONLY);
-
-	if (fd < 0)
-		err(1, "failed ");
-
-	if (ioctl(fd, SENSORIOCRESET, 0) < 0)
-		err(1, "driver reset failed");
-
-	if (ioctl(fd, SENSORIOCSPOLLRATE, SENSOR_POLLRATE_DEFAULT) < 0)
-		err(1, "accel pollrate reset failed");
-
-        close(fd);
-
-	exit(0);
-}
-
-/**
  * Print a little info about the driver.
  */
 void
@@ -757,12 +731,6 @@ ad7781_main(int argc, char *argv[])
 	 */
 	if (!strcmp(verb, "test"))
 		ad7781::test();
-
-	/*
-	 * Reset the driver.
-	 */
-	if (!strcmp(verb, "reset"))
-		ad7781::reset();
 
 	/*
 	 * Print driver information.
