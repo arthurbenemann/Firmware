@@ -107,9 +107,6 @@ private:
 	int			_orb_class_instance;
 	int			_class_instance;
 
-	unsigned		_current_rate;
-	unsigned		_current_bandwidth;
-
 	unsigned		_read;
 
 	perf_counter_t		_sample_perf;
@@ -172,8 +169,6 @@ AD7781::AD7781(int bus, const char* path, spi_dev_e device) :
 	_gyro_topic(-1),
 	_orb_class_instance(-1),
 	_class_instance(-1),
-	_current_rate(0),
-	_current_bandwidth(50),
 	_read(0),
 	_sample_perf(perf_alloc(PC_ELAPSED, "l3gd20_read")),
 	_reschedules(perf_alloc(PC_COUNT, "l3gd20_reschedules")),
