@@ -154,13 +154,6 @@ private:
 	void			reset();
 
 	/**
-	 * Get the internal / external state
-	 *
-	 * @return true if the sensor is not on the main MCU board
-	 */
-	bool			is_external() { return (_bus == EXTERNAL_BUS); }
-
-	/**
 	 * Static trampoline from the hrt_call context; because we don't have a
 	 * generic hrt wrapper yet.
 	 *
@@ -297,7 +290,7 @@ AD7781::init()
 	_reports->get(&grp);
 
 	_gyro_topic = orb_advertise_multi(ORB_ID(sensor_gyro), &grp,
-		&_orb_class_instance, (is_external()) ? ORB_PRIO_VERY_HIGH : ORB_PRIO_DEFAULT);
+		&_orb_class_instance, ORB_PRIO_VERY_HIGH);
 
 	if (_gyro_topic < 0) {
 		debug("failed to create sensor_gyro publication");
@@ -942,7 +935,6 @@ usage()
 {
 	warnx("missing command: try 'start', 'info', 'test', 'reset', 'testerror' or 'regdump'");
 	warnx("options:");
-	warnx("    -X    (external bus)");
 }
 
 } // namespace
