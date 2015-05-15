@@ -135,9 +135,6 @@ private:
 
 	uint8_t			_register_wait;
 
-	/* true if an L3G4200D is detected */
-	bool	_is_l3g4200d;
-
 	/**
 	 * Start automatic measurement.
 	 */
@@ -228,7 +225,6 @@ AD7781::AD7781(int bus, const char* path, spi_dev_e device) :
 	_errors(perf_alloc(PC_COUNT, "l3gd20_errors")),
 	_bad_registers(perf_alloc(PC_COUNT, "l3gd20_bad_registers")),
 	_register_wait(0),
-	_is_l3g4200d(false),
 	_checked_next(0)
 {
 	// enable debug() calls
@@ -314,12 +310,6 @@ AD7781::probe()
 	 * AD7781, */
 	if ((v=read_reg(ADDR_WHO_AM_I)) == WHO_I_AM) {
 		success = true;
-	} else if ((v=read_reg(ADDR_WHO_AM_I)) == WHO_I_AM_H) {
-		success = true;
-	} else if ((v=read_reg(ADDR_WHO_AM_I)) == WHO_I_AM_L3G4200D) {
-		/* Detect the L3G4200D used on AeroCore */
-		_is_l3g4200d = true;
-		success = true;
 	}
 
 	if (success) {
@@ -395,9 +385,6 @@ AD7781::ioctl(struct file *filp, int cmd, unsigned long arg)
 				/* set default/max polling rate */
 			case SENSOR_POLLRATE_MAX:
 			case SENSOR_POLLRATE_DEFAULT:
-				if (_is_l3g4200d) {
-					return ioctl(filp, SENSORIOCSPOLLRATE, L3G4200D_DEFAULT_RATE);
-				}
 				return ioctl(filp, SENSORIOCSPOLLRATE, AD7781_DEFAULT_RATE);
 
 				/* adjust to a legal polling interval in Hz */
