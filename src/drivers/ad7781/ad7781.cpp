@@ -680,8 +680,7 @@ info()
 void
 usage()
 {
-	warnx("missing command: try 'start', 'info', 'test', 'reset', 'testerror' or 'regdump'");
-	warnx("options:");
+	warnx("missing command: try 'start', 'info' or 'test'");
 }
 
 } // namespace
@@ -690,18 +689,6 @@ int
 ad7781_main(int argc, char *argv[])
 {
 	int ch;
-
-	/* jump over start/off/etc and look at options first */
-	while ((ch = getopt(argc, argv, "XR:")) != EOF) {
-		switch (ch) {
-		case 'X':
-			external_bus = true;
-			break;
-		default:
-			ad7781::usage();
-			exit(0);
-		}
-	}
 
 	const char *verb = argv[optind];
 
@@ -724,17 +711,5 @@ ad7781_main(int argc, char *argv[])
 	if (!strcmp(verb, "info"))
 		ad7781::info();
 
-	/*
-	 * Print register information.
-	 */
-	if (!strcmp(verb, "regdump"))
-		ad7781::regdump();
-
-	/*
-	 * trigger an error
-	 */
-	if (!strcmp(verb, "testerror"))
-		ad7781::test_error();
-
-	errx(1, "unrecognized command, try 'start', 'test', 'reset', 'info', 'testerror' or 'regdump'");
+	errx(1, "unrecognized command, try 'start', 'info' or 'test'");
 }
