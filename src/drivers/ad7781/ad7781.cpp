@@ -421,29 +421,6 @@ AD7781::ioctl(struct file *filp, int cmd, unsigned long arg)
 		reset();
 		return OK;
 
-	case GYROIOCSSAMPLERATE:
-		return set_samplerate(arg, _current_bandwidth);
-
-	case GYROIOCGSAMPLERATE:
-		return _current_rate;
-
-	case GYROIOCSRANGE:
-		/* arg should be in dps */
-		return set_range(arg);
-
-	case GYROIOCGRANGE:
-		/* convert to dps and round */
-		return (unsigned long)(_gyro_range_rad_s * 180.0f / M_PI_F + 0.5f);
-
-	case GYROIOCSELFTEST:
-		return self_test();
-
-	case GYROIOCSHWLOWPASS:
-		return set_samplerate(_current_rate, arg);
-
-	case GYROIOCGHWLOWPASS:
-		return _current_bandwidth;
-
 	default:
 		/* give it to the superclass */
 		return SPI::ioctl(filp, cmd, arg);
