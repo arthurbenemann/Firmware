@@ -484,27 +484,6 @@ AD7781::stop()
 void
 AD7781::reset()
 {
-	// ensure the chip doesn't interpret any other bus traffic as I2C
-	disable_i2c();
-
-	/* set default configuration */
-	write_checked_reg(ADDR_CTRL_REG1,
-                          REG1_POWER_NORMAL | REG1_Z_ENABLE | REG1_Y_ENABLE | REG1_X_ENABLE);
-	write_checked_reg(ADDR_CTRL_REG2, 0);		/* disable high-pass filters */
-	write_checked_reg(ADDR_CTRL_REG3, 0x08);        /* DRDY enable */
-	write_checked_reg(ADDR_CTRL_REG4, REG4_BDU);
-	write_checked_reg(ADDR_CTRL_REG5, 0);
-	write_checked_reg(ADDR_CTRL_REG5, REG5_FIFO_ENABLE);		/* disable wake-on-interrupt */
-
-	/* disable FIFO. This makes things simpler and ensures we
-	 * aren't getting stale data. It means we must run the hrt
-	 * callback fast enough to not miss data. */
-	write_checked_reg(ADDR_FIFO_CTRL_REG, FIFO_CTRL_BYPASS_MODE);
-
-	set_samplerate(0, _current_bandwidth); // 760Hz or 800Hz
-	set_range(AD7781_DEFAULT_RANGE_DPS);
-	set_driver_lowpass_filter(AD7781_DEFAULT_RATE, AD7781_DEFAULT_FILTER_FREQ);
-
 	_read = 0;
 }
 
