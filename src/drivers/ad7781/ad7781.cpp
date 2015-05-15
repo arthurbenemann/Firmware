@@ -75,13 +75,6 @@
 #endif
 static const int ERROR = -1;
 
-
-#ifdef PX4_SPI_BUS_EXT
-#define EXTERNAL_BUS PX4_SPI_BUS_EXT
-#else
-#define EXTERNAL_BUS 0
-#endif
-
 extern "C" { __EXPORT int ad7781_main(int argc, char *argv[]); }
 
 class AD7781 : public device::SPI
@@ -99,7 +92,6 @@ public:
 	 * Diagnostics - print some basic information about the driver.
 	 */
 	void			print_info();
-
 
 protected:
 	virtual int		probe();
@@ -570,7 +562,7 @@ namespace ad7781
 AD7781	*g_dev;
 
 void	usage();
-void	start(bool external_bus);
+void	start();
 void	test();
 void	info();
 
@@ -581,23 +573,18 @@ void	info();
  * started or failed to detect the sensor.
  */
 void
-start(bool external_bus)
+start()
 {
 	int fd;
 
 	if (g_dev != nullptr)
 		errx(0, "already started");
 
-	/* create the driver */
-        if (external_bus) {
 #ifdef PX4_SPI_BUS_EXT
 		g_dev = new AD7781(PX4_SPI_BUS_EXT, AD7781_DEVICE_PATH, (spi_dev_e)PX4_SPIDEV_EXT_GYRO);
 #else
 		errx(0, "External SPI not available");
 #endif
-	} else {
-		g_dev = new AD7781(PX4_SPI_BUS_SENSORS, AD7781_DEVICE_PATH, (spi_dev_e)PX4_SPIDEV_GYRO);
-	}
 
 	if (g_dev == nullptr)
 		goto fail;
@@ -702,7 +689,6 @@ usage()
 int
 ad7781_main(int argc, char *argv[])
 {
-	bool external_bus = false;
 	int ch;
 
 	/* jump over start/off/etc and look at options first */
@@ -724,7 +710,7 @@ ad7781_main(int argc, char *argv[])
 
 	 */
 	if (!strcmp(verb, "start"))
-		ad7781::start(external_bus);
+		ad7781::start();
 
 	/*
 	 * Test the driver/device.
